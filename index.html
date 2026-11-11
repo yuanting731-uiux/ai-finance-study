@@ -1112,6 +1112,15 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 })();
 </script>
 <script>
+// 網址沒有 ?v= 時自動隨機分派版本（同一支手機重新整理會維持同一版本）；網址有 ?v=B2 則以網址為準
+(function () {
+  const V = ["A1", "A2", "B1", "B2", "C1", "C2"], K = "study_assigned_v";
+  const q = new URLSearchParams(location.search), cur = (q.get("v") || "").toUpperCase();
+  if (V.includes(cur)) return;
+  let v = null; try { v = localStorage.getItem(K); } catch (e) {}
+  if (!V.includes(v)) { v = V[Math.floor(Math.random() * V.length)]; try { localStorage.setItem(K, v); } catch (e) {} }
+  q.set("v", v); history.replaceState(null, "", location.pathname + "?" + q.toString() + location.hash);
+})();
 (function () {
   const h = React.createElement;
   window.Icon = new Proxy({}, { get: () => () => null });
@@ -1140,7 +1149,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // ---------------- 版本 ----------------
   const VERSIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
   const VKEY = "xibank_ai_version";
-  const LOG_URL = "https://script.google.com/macros/s/AKfycby1vgMqwB2Mq8_U-twoMptjLrwX8re_6MZUDUwVklPraKMnGeOvLshDNEBQq9f1zsK00Q/exec";
+  const LOG_URL = "https://script.google.com/macros/s/AKfycbwfyINStTXdRyR3GpIUDWk9wL1ELaN2z-RevLLH8r_inFRaiJ5jkLX--S28eka-H3Y1mg/exec";
   const stamp = d => d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0") + " " +
     [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, "0")).join(":");
   function sendLog(data) {
@@ -2010,8 +2019,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
         : "<p>您剛才操作的銀行 App 和 AI 理財助理是研究用的模擬畫面，其中的銀行、商品與數據都是虛構的，不是真實的投資建議。</p><p>您的填答內容以匿名方式保存，僅供本研究分析使用。" +
           (S.a.Q39 === "願意" ? "我們會在後續研究開始時與您聯繫，感謝您願意持續協助！" : "") + "</p>") +
       '<p class="sv-sign">國立臺灣科技大學設計系碩士班<br>研究生 張媛婷　敬上<br>指導教授 陳建雄</p></div></div>';
-    foot().innerHTML = '<button class="sv-link sv-nextp">下一位受試者（研究人員用）</button>';
-    foot().querySelector(".sv-nextp").onclick = () => location.replace(location.pathname);
+    foot().innerHTML = "";
   }
 
   function boot() { document.body.appendChild(root); render(); flush(); }
