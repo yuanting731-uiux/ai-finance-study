@@ -811,6 +811,7 @@ body { position: fixed; inset: 0; width: 100%; background: #F1F5EC !important; }
 </head>
 <body>
 <div id="root"></div>
+<div id="boot-load" style="min-height:100dvh;display:grid;place-items:center;font:500 15px/1.6 'Noto Sans TC',-apple-system,'PingFang TC',sans-serif;color:#144419;background:#F1F5EC">載入中…</div>
 <script>/**
  * @license React
  * react.production.min.js
@@ -1112,14 +1113,43 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 })();
 </script>
 <script>
-// 網址沒有 ?v= 時自動隨機分派版本（同一支手機重新整理會維持同一版本）；網址有 ?v=B2 則以網址為準
+// 版本分派：
+//  - 網址有 ?v=B2 → 以網址為準（研究者測試用，不記錄分派）
+//  - 否則向 Google 試算表索取「目前人數最少」的版本；同一個分頁重新整理會維持同一版本
+//  - 版本只存在本次分頁中，不寫進網址，避免受試者複製網址轉傳時把版本一起帶出去
 (function () {
-  const V = ["A1", "A2", "B1", "B2", "C1", "C2"], K = "study_assigned_v";
-  const q = new URLSearchParams(location.search), cur = (q.get("v") || "").toUpperCase();
-  if (V.includes(cur)) return;
-  let v = null; try { v = localStorage.getItem(K); } catch (e) {}
-  if (!V.includes(v)) { v = V[Math.floor(Math.random() * V.length)]; try { localStorage.setItem(K, v); } catch (e) {} }
-  q.set("v", v); history.replaceState(null, "", location.pathname + "?" + q.toString() + location.hash);
+  const V = ["A1", "A2", "B1", "B2", "C1", "C2"], K = "study_v2", KI = "study_id2";
+  const API = "https://script.google.com/macros/s/AKfycbwfyINStTXdRyR3GpIUDWk9wL1ELaN2z-RevLLH8r_inFRaiJ5jkLX--S28eka-H3Y1mg/exec";
+  const cur = (new URLSearchParams(location.search).get("v") || "").toUpperCase();
+  const get = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
+  const put = (k, x) => { try { sessionStorage.setItem(k, x); } catch (e) {} };
+  function boot() {
+    const l = document.getElementById("boot-load"); if (l) l.remove();
+    ["s-ai", "s-survey", "s-mount"].forEach(id => {
+      const s = document.createElement("script"); s.textContent = document.getElementById(id).textContent; document.body.appendChild(s);
+    });
+  }
+  const ready = f => document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", f) : f();
+  const start = v => { window.__V = v; ready(boot); };
+  window.__ASSIGN_ID = "";
+  if (V.includes(cur)) return start(cur);
+  let v = get(K), id = get(KI);
+  if (!id) { id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); put(KI, id); }
+  window.__ASSIGN_ID = id;
+  if (V.includes(v)) return start(v);
+  const tell = x => { try { fetch(API + "?action=assign&id=" + encodeURIComponent(id) + "&force=" + x).catch(() => {}); } catch (e) {} };
+  let done = false;
+  const fin = (got, fallback) => {
+    if (done) return; done = true;
+    const pick = V.includes(got) ? got : V[Math.floor(Math.random() * V.length)];
+    put(K, pick);
+    if (fallback) tell(pick);   // 試算表回應太慢、改用隨機時，回報實際使用的版本，兩邊才會一致
+    start(pick);
+  };
+  const t = setTimeout(() => fin(null, true), 15000);
+  fetch(API + "?action=assign&id=" + encodeURIComponent(id) + "&t=" + Date.now(), { cache: "no-store" })
+    .then(r => r.json()).then(d => { clearTimeout(t); fin(d && d.v, !(d && V.includes(d.v))); })
+    .catch(() => { clearTimeout(t); fin(null, true); });
 })();
 (function () {
   const h = React.createElement;
@@ -1133,7 +1163,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   window.__LITE = true;
 })();
 </script>
-<script>/* 行動銀行 — AI 理財助理（研究用互動原型）
+<script type="text/plain" id="s-ai">/* 行動銀行 — AI 理財助理（研究用互動原型）
    六個實驗版本：A1 A2 B1 B2 C1 C2
    字母＝解釋類型（A 無解釋／B 行為邏輯解釋／C 相似族群解釋）
    數字＝決策風險（1 低風險／2 高風險）
@@ -1161,7 +1191,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   const FORCED = null; // 單一版本檔：建置時替換成 "B2" 等
   const STUDY = true;  // 問卷整合版：建置時替換成 true
   function getVersion() {
-    if (FORCED) return FORCED;
+    if (window.__V) return window.__V; if (FORCED) return FORCED;
     let v = null;
     try {
       const q = new URLSearchParams(location.search).get("v") ||
@@ -1197,7 +1227,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     document.body.appendChild(el);
   }
   try {
-    if (!FORCED && !new URLSearchParams(location.search).get("v")) {
+    if (!FORCED && !window.__V && !new URLSearchParams(location.search).get("v")) {
       if (document.body) showPicker(); else document.addEventListener("DOMContentLoaded", showPicker);
     }
   } catch (e) {}
@@ -1684,14 +1714,14 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   window.__AI = { EXPLAIN, PRODUCTS, EvidenceCard, ProductCard, Avatar, getVersion, LOG_URL, stamp, STUDY };
 })();
 </script>
-<script>/* ===== 問卷整合版：問卷 → 操作原型 → 問卷，全部在同一個網頁 =====
+<script type="text/plain" id="s-survey">/* ===== 問卷整合版：問卷 → 操作原型 → 問卷，全部在同一個網頁 =====
    資料：每位受試者送出一列到 Google Sheet（整合資料分頁）；聯絡方式另存（聯絡方式分頁）。 */
 (function () {
   const AI = window.__AI;
   if (!AI || !AI.STUDY) return;
   window.__BOT_SVG = "<svg class=\"bot\" viewBox=\"-100 -100 200 200\" xmlns=\"http://www.w3.org/2000/svg\" aria-label=\"AI \u7406\u8ca1\u52a9\u7406\"><circle cx=\"0\" cy=\"0\" r=\"92\" fill=\"#144419\"/><path class=\"e0\" d=\"M-9.3 -11.3A9.3 9.3 0 0 1 0 -20.6L0 -20.6A9.3 9.3 0 0 1 9.3 -11.3L9.3 11.3A9.3 9.3 0 0 1 0 20.6L0 20.6A9.3 9.3 0 0 1 -9.3 11.3Z\" fill=\"#A8E665\" transform=\"matrix(0.86,-0.32,0.45,0.84,15.9,-30.3)\"/><path class=\"e1\" d=\"M-9.3 -11.3A9.3 9.3 0 0 1 0 -20.6L0 -20.6A9.3 9.3 0 0 1 9.3 -11.3L9.3 11.3A9.3 9.3 0 0 1 0 20.6L0 20.6A9.3 9.3 0 0 1 -9.3 11.3Z\" fill=\"#A8E665\" transform=\"matrix(0.62,-0.05,0.45,0.84,51,-41.4)\"/></svg>";
   const qs = new URLSearchParams(location.search);
-  const V = (qs.get("v") || "").toUpperCase();
+  const V = (window.__V || qs.get("v") || "").toUpperCase();
   if (!/^[ABC][12]$/.test(V)) return; // 尚未選版本 → 由研究者選擇頁處理
 
   const LIK = ["非常不同意", "非常同意"];
@@ -1991,7 +2021,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     const EXP = { A: "A 無解釋", B: "B 行為邏輯解釋", C: "C 相似族群解釋" }[V[0]];
     Object.assign(row, {
       "開始時間": AI.stamp(S.start), "送出時間": AI.stamp(new Date()), "版本": V, "解釋類型": EXP, "風險": V[1] === "1" ? "低風險" : "高風險",
-      "狀態": S.status, "總作答秒數": Math.round((Date.now() - S.start.getTime()) / 1000),
+      "狀態": S.status, "分派編號": (() => { try { return window.__ASSIGN_ID || ""; } catch (e) { return ""; } })(), "總作答秒數": Math.round((Date.now() - S.start.getTime()) / 1000),
     });
     for (let n = 1; n <= 39; n++) {
       const k = "Q" + n;
@@ -2026,7 +2056,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   if (document.body) boot(); else document.addEventListener("DOMContentLoaded", boot);
 })();
 </script>
-<script>
+<script type="text/plain" id="s-mount">
 (function () {
   const h = React.createElement;
   function App() {
